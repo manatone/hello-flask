@@ -1,36 +1,63 @@
-from flask import Flask, render_template_string
+from dotenv import load_dotenv
+load_dotenv()
+from flask import Flask, request, render_template_string
+import requests
 import os
+
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+DATABASE_ID = os.getenv("DATABASE_ID")
 
 app = Flask(__name__)
 
-@app.route("/")
-
+@app.route("/", methods=["GET", "POST"])
 def home():
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Hello App</title>
-    </head>
-    <body>
-        <h1>ようこそ！</h1>
-        <input type="text" id="nameInput" placeholder="名前を入力してください">
-        <button onclick="sayHello()">送信</button>
+    if request.method == "POST":
+        name = request.form.get("name")
+        comment = request.form.get("comment")
+        add_to_notion(name, comment)
+        return "Notionに追加されました！"
 
-        <script>
-            function sayHello() {
-                const name = document.getElementById("nameInput").value;
-                if (name.trim() === "") {
-                    alert("名前を入力してください！");
-                } else {
-                    alert("こんにちは、" + name + "さん！");
-                }
-            }
-        </script>
-    </body>
-    </html>
+    return render_template_string("""
+    <form method="POST">
+        名前: <input type="text" name="name"><br>
+        コメント: <input type="text" name="comment"><br>
+        <input type="submit" value="送信">
+    </form>
     """)
 
+def add_to_notion(name, comment):
+    url = "https://api.notion.com/v1/pages"
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28",
+    }
+    data = {
+        "parent": { "database_id": DATABASE_ID },
+        "properties": {
+            "名前": {
+                "title": [
+                    {
+                        "text": {
+                            "content": name
+                        }
+                    }
+                ]
+            },
+            "コメント": {
+                "rich_text": [
+                    {
+                        "text": {
+                            "content": comment
+                        }
+                    }
+                ]
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    print(response.status_code, response.text)
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
